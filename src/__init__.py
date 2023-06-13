@@ -33,12 +33,40 @@ output = p.open(
     frames_per_buffer=FRAMES_PER_BUFFER
 )
 
-seconds = 5
+seconds = 50
 frames = []
+
+
+def filter_band(data, low, high, m):
+    band = list(data)[low:high]
+
+    band = [min(int(x * m), 255) for x in band]
+
+    # butter
+    return bytes(band)
+
+
+def equalizer(data):
+    band1 = filter_band(data, 0, 640, 2)
+    band2 = filter_band(data, 640, 1280, 2)
+    band3 = filter_band(data, 1280, 1920, 2)
+    band4 = filter_band(data, 1920, 2560, 2)
+    band5 = filter_band(data, 2560, 3200, 2)
+    band6 = filter_band(data, 3200, 3840, 0)
+    band7 = filter_band(data, 3840, 4480, 0)
+    band8 = filter_band(data, 4480, 5120, 0)
+    band9 = filter_band(data, 5120, 5760, 0)
+    band10 = filter_band(data, 5760, 6400, 0)
+
+    signal = band1 + band2 + band3 + band4 + band5 + band6 + band7 + band8 + band9 + band10
+    return signal
+
 
 for i in range(0, int(RATE / FRAMES_PER_BUFFER * seconds)):
     data = input.read(FRAMES_PER_BUFFER)
-    output.write(data)
+    out = equalizer(data)
+    output.write(out)
+    # output.write(data)
     frames.append(data)
 
 input.stop_stream()
