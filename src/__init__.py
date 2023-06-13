@@ -3,6 +3,8 @@ import wave
 import matplotlib.pyplot as plt
 import numpy as np
 import pyaudio
+import math
+import struct
 
 # Audio signal parameters
 # - Number of channels
@@ -11,8 +13,9 @@ import pyaudio
 # - Number of Frames
 # - Values of a Frame
 
+
 FRAMES_PER_BUFFER = 3200
-FORMAT = pyaudio.paInt16
+FORMAT = pyaudio.paFloat32
 CHANNELS = 1
 RATE = 16000
 
@@ -33,7 +36,7 @@ output = p.open(
     frames_per_buffer=FRAMES_PER_BUFFER
 )
 
-seconds = 50
+seconds = 5
 frames = []
 
 
@@ -46,31 +49,56 @@ def filter_band(data, low, high, m):
     return bytes(band)
 
 
-def equalizer(data):
-    band1 = filter_band(data, 0, 640, 2)
-    band2 = filter_band(data, 640, 1280, 2)
-    band3 = filter_band(data, 1280, 1920, 2)
-    band4 = filter_band(data, 1920, 2560, 2)
-    band5 = filter_band(data, 2560, 3200, 2)
-    band6 = filter_band(data, 3200, 3840, 0)
-    band7 = filter_band(data, 3840, 4480, 0)
-    band8 = filter_band(data, 4480, 5120, 0)
-    band9 = filter_band(data, 5120, 5760, 0)
-    band10 = filter_band(data, 5760, 6400, 0)
+def distortion_filter(data, gain, volume):
+    unpacked_data = []
 
-    signal = band1 + band2 + band3 + band4 + band5 + band6 + band7 + band8 + band9 + band10
-    return signal
+    for i in range(int(len(data) / 4)):
+        unpacked_data += struct.unpack('f', data[i * 4:i * 4 + 4])
+
+    for i in range(len(unpacked_data)):
+        unpacked_data[i] = math.tanh(unpacked_data[i] * gain) * volume
+
+    return b''.join(struct.pack('f', x) for x in unpacked_data)
+
+
+def delay_filter(data, delay_seconds, volumn):
+    samples = int(FRAMES_PER_BUFFER * delay_seconds)
+    data = list(data)
+
+    for i in range(len(data)):
+        if i + samples < len(data):
+            data[i + samples] += min(int(data[i] * volumn), 255)
+
+    return bytes(data)
+
+
+def equalizer(data):
+    return distortion_filter(data, 200, .5)
+    # band2 = filter_band(data, 640, 1280, 1)
+    # band3 = filter_band(data, 1280, 1920, 1)
+    # band4 = filter_band(data, 1920, 2560, 1)
+    # band5 = filter_band(data, 2560, 3200, 2)
+    # band6 = filter_band(data, 3200, 3840, 0)
+    # band7 = filter_band(data, 3840, 4480, 0)
+    # band8 = filter_band(data, 4480, 5120, 0)
+    # band9 = filter_band(data, 5120, 5760, 0)
+    # band10 = filter_band(data, 5760, 6400, 0)
+
+    # signal = band1
+    #          # + band2 + band3 + band4 + band5 + band6 + band7 + band8 + band9 + band10
+    # return signal
 
 
 for i in range(0, int(RATE / FRAMES_PER_BUFFER * seconds)):
     data = input.read(FRAMES_PER_BUFFER)
     out = equalizer(data)
     output.write(out)
-    # output.write(data)
-    frames.append(data)
+    frames.append(out)
 
 input.stop_stream()
 input.close()
+output.stop_stream()
+output.close()
 p.terminate()
 
 obj = wave.open("output.wav", "wb")
@@ -99,7 +127,7 @@ def main():
 
     obj.close()
 
-    signal_array = np.frombuffer(signal_wave, dtype=np.int16)
+    signal_array = np.frombuffer(signal_wave, dtype=np.float32)
     times = np.linspace(0, t_audio, num=n_samples)
 
     plt.figure(figsize=(15, 5))
