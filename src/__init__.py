@@ -17,7 +17,7 @@ CHANNELS = 1
 RATE = 16000
 
 p = pyaudio.PyAudio()
-stream = p.open(
+input = p.open(
     format=FORMAT,
     channels=CHANNELS,
     rate=RATE,
@@ -25,15 +25,24 @@ stream = p.open(
     frames_per_buffer=FRAMES_PER_BUFFER
 )
 
+output = p.open(
+    format=FORMAT,
+    channels=CHANNELS,
+    rate=RATE,
+    output=True,
+    frames_per_buffer=FRAMES_PER_BUFFER
+)
+
 seconds = 5
 frames = []
 
 for i in range(0, int(RATE / FRAMES_PER_BUFFER * seconds)):
-    data = stream.read(FRAMES_PER_BUFFER)
+    data = input.read(FRAMES_PER_BUFFER)
+    output.write(data)
     frames.append(data)
 
-stream.stop_stream()
-stream.close()
+input.stop_stream()
+input.close()
 p.terminate()
 
 obj = wave.open("output.wav", "wb")
